@@ -1,2 +1,2 @@
-# German-Creedit-Analysis
+# German-Credit-Analysis
 credit risk analysis
