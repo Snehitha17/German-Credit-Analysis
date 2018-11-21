@@ -111,3 +111,96 @@ plt.xlabel('Based on Job Grading')
 plt.ylabel('Amount')
 plt.show()
 
+from sklearn.preprocessing import LabelEncoder
+le= LabelEncoder()
+df["Risk"]= le.fit_transform(df["Risk"])
+df["Sex"] = le.fit_transform(df["Sex"])
+df["Housing"] = le.fit_transform(df["Housing"])
+
+df["Saving accounts"] = df["Saving accounts"].replace({"little":0, "moderate":1, "rich":2, "quite rich":3})
+df["Checking account"] = df["Checking account"].replace({"little":0, "moderate":1, "rich":2})
+df = df.fillna(1)
+df1 = df.drop(columns = 'Purpose')
+df1.head()
+
+plt.figure(figsize =(20,20))
+Corr=df[df.columns].corr()
+sns.heatmap(Corr,annot=True)
+
+from sklearn.metrics import classification_report,accuracy_score
+from sklearn.ensemble import IsolationForest
+from sklearn.neighbors import LocalOutlierFactor
+from sklearn.svm import OneClassSVM
+from pylab import rcParams
+rcParams['figure.figsize'] = 14, 8
+RANDOM_SEED = 42
+
+columns = df1.columns.tolist()
+# Filter the columns to remove data we do not want 
+columns = [c for c in columns if c not in ["Risk"]]
+# Store the variable we are predicting 
+target = "Risk"
+# Define a random state 
+state = np.random.RandomState(42)
+X = df1[columns]
+Y = df1[target]
+X_outliers = state.uniform(low=0, high=1, size=(X.shape[0], X.shape[1]))
+# Print the shapes of X & Y
+print(X.shape)
+print(Y.shape)
+
+outlier_fraction = len(bad)/float(len(good))
+classifiers = {
+    "Isolation Forest":IsolationForest(n_estimators=100, max_samples=len(X), 
+                                       contamination=outlier_fraction,random_state=42, verbose=0),
+    "Local Outlier Factor":LocalOutlierFactor(n_neighbors=20, algorithm='auto', 
+                                              leaf_size=30, metric='minkowski',
+                                              p=2, metric_params=None, contamination=outlier_fraction),
+    "Support Vector Machine":OneClassSVM(kernel='rbf', degree=3, gamma=0.1,nu=0.05, 
+                                         max_iter=-1, random_state=43)
+   
+}
+
+n_outliers = len(bad)
+for i, (clf_name,clf) in enumerate(classifiers.items()):
+    #Fit the data and tag outliers
+    if clf_name == "Local Outlier Factor":
+        y_pred = clf.fit_predict(X)
+        scores_prediction = clf.negative_outlier_factor_
+    elif clf_name == "Support Vector Machine":
+        clf.fit(X)
+        y_pred = clf.predict(X)
+    else:    
+        clf.fit(X)
+        scores_prediction = clf.decision_function(X)
+        y_pred = clf.predict(X)
+    #Reshape the prediction values to 1 for good transactions , 0 for bad transactions
+    y_pred[y_pred == 1] = 0
+    y_pred[y_pred == -1] = 1
+    n_errors = (y_pred != Y).sum()
+    # Run Classification Metrics
+    print("{}: {}".format(clf_name,n_errors))
+    print("Accuracy Score :")
+    print(accuracy_score(Y,y_pred))
+    print("Classification Report :")
+    print(classification_report(Y,y_pred))
+    
+from sklearn.metrics import confusion_matrix
+
+cm = confusion_matrix(Y, y_pred)
+print(cm)
+
+plt.clf()
+plt.imshow(cm, interpolation='nearest', cmap=plt.cm.Wistia)
+classNames = ['Negative','Positive']
+plt.title('Versicolor or Not Versicolor Confusion Matrix - Test Data')
+plt.ylabel('True label')
+plt.xlabel('Predicted label')
+tick_marks = np.arange(len(classNames))
+plt.xticks(tick_marks, classNames, rotation=45)
+plt.yticks(tick_marks, classNames)
+s = [['TN','FP'], ['FN', 'TP']]
+for i in range(2):
+    for j in range(2):
+        plt.text(j,i, str(s[i][j])+" = "+str(cm[i][j]))
+plt.show()
